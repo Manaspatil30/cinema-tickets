@@ -6,12 +6,18 @@ import thirdparty.paymentgateway.TicketPaymentService;
 import thirdparty.seatbooking.SeatReservationService;
 import uk.gov.dwp.uc.pairtest.TicketServiceImpl;
 import uk.gov.dwp.uc.pairtest.domain.TicketTypeRequest;
+import uk.gov.dwp.uc.pairtest.exception.InvalidPurchaseException;
+
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+
 public class TicketServiceImplTest {
     private TicketPaymentService ticketPaymentService;
     private SeatReservationService seatReservationService;
     private TicketServiceImpl ticketService;
 
+    //Valid Ticket Purchase Scenarios
     @BeforeEach
     void setup(){
         ticketPaymentService = Mockito.mock(TicketPaymentService.class);
@@ -73,5 +79,142 @@ public class TicketServiceImplTest {
         verify(seatReservationService).reserveSeat(1L, 3); // only adults
     }
 
+    @Test
+    @DisplayName("Large account ID is valid")
+    void largeAccountId() {
+        ticketService.purchaseTickets(999999L,
+                new TicketTypeRequest(TicketTypeRequest.Type.ADULT, 1));
+
+        verify(ticketPaymentService).makePayment(999999L, 25);
+        verify(seatReservationService).reserveSeat(999999L, 1);
+    }
+
+    //Invalid account ID Scenarios
+
+    @Test
+    @DisplayName("Account ID zero is rejected")
+    void accountIdZeroThrows() {
+        assertThrows(InvalidPurchaseException.class, () ->
+                ticketService.purchaseTickets(0L,
+                        new TicketTypeRequest(TicketTypeRequest.Type.ADULT, 1)));
+
+        verifyNoInteractions(ticketPaymentService, seatReservationService);
+    }
+
+    @Test
+    @DisplayName("Negative account ID is rejected")
+    void negativeAccountIdThrows() {
+        assertThrows(InvalidPurchaseException.class, () ->
+                ticketService.purchaseTickets(-1L,
+                        new TicketTypeRequest(TicketTypeRequest.Type.ADULT, 1)));
+
+        verifyNoInteractions(ticketPaymentService, seatReservationService);
+    }
+
+    @Test
+    @DisplayName("Null account is rejected")
+    void nullAccountIdThrows() {
+        assertThrows(InvalidPurchaseException.class, () ->
+                ticketService.purchaseTickets(null,
+                        new TicketTypeRequest(TicketTypeRequest.Type.ADULT, 1)));
+
+        verifyNoInteractions(ticketPaymentService, seatReservationService);
+    }
+
+    //Invalid Ticket request Scenarios
+
+    @Test
+    @DisplayName("No ticket requests throws InvalidPurchaseException")
+    void noTicketRequestsThrows() {
+        assertThrows(InvalidPurchaseException.class, () ->
+                ticketService.purchaseTickets(1L));
+
+        verifyNoInteractions(ticketPaymentService, seatReservationService);
+    }
+
+    @Test
+    @DisplayName("Null ticket requests array throws InvalidPurchaseException")
+    void nullTicketRequestsThrows() {
+        assertThrows(InvalidPurchaseException.class, () ->
+                ticketService.purchaseTickets(1L, (TicketTypeRequest[]) null));
+
+        verifyNoInteractions(ticketPaymentService, seatReservationService);
+    }
+
+    @Test
+    @DisplayName("Zero quantity in a ticket request throws InvalidPurchaseException")
+    void zeroQuantityTicketRequestThrows() {
+        assertThrows(InvalidPurchaseException.class, () ->
+                ticketService.purchaseTickets(1L,
+                        new TicketTypeRequest(TicketTypeRequest.Type.ADULT, 0)));
+
+        verifyNoInteractions(ticketPaymentService, seatReservationService);
+    }
+
+    //Business Rules
+
+    @Test
+    @DisplayName("More than 25 tickets throws InvalidPurchaseException")
+    void moreThan25TicketsThrows() {
+        assertThrows(InvalidPurchaseException.class, () ->
+                ticketService.purchaseTickets(1L,
+                        new TicketTypeRequest(TicketTypeRequest.Type.ADULT, 26)));
+
+        verifyNoInteractions(ticketPaymentService, seatReservationService);
+    }
+
+    @Test
+    @DisplayName("Child ticket without adult throws InvalidPurchaseException")
+    void childTicketWithoutAdultThrows() {
+        assertThrows(InvalidPurchaseException.class, () ->
+                ticketService.purchaseTickets(1L,
+                        new TicketTypeRequest(TicketTypeRequest.Type.CHILD, 2)));
+
+        verifyNoInteractions(ticketPaymentService, seatReservationService);
+    }
+
+    @Test
+    @DisplayName("Infant ticket without adult throws InvalidPurchaseException")
+    void infantTicketWithoutAdultThrows() {
+        assertThrows(InvalidPurchaseException.class, () ->
+                ticketService.purchaseTickets(1L,
+                        new TicketTypeRequest(TicketTypeRequest.Type.INFANT, 1)));
+
+        verifyNoInteractions(ticketPaymentService, seatReservationService);
+    }
+
+    @Test
+    @DisplayName("More infants than adults throws InvalidPurchaseException")
+    void moreInfantsThanAdultsThrows() {
+        assertThrows(InvalidPurchaseException.class, () ->
+                ticketService.purchaseTickets(1L,
+                        new TicketTypeRequest(TicketTypeRequest.Type.ADULT, 2),
+                        new TicketTypeRequest(TicketTypeRequest.Type.INFANT, 3)));
+
+        verifyNoInteractions(ticketPaymentService, seatReservationService);
+    }
+
+    @Test
+    @DisplayName("Child and infant without adult throws InvalidPurchaseException")
+    void childAndInfantWithoutAdultThrows() {
+        assertThrows(InvalidPurchaseException.class, () ->
+                ticketService.purchaseTickets(1L,
+                        new TicketTypeRequest(TicketTypeRequest.Type.CHILD, 2),
+                        new TicketTypeRequest(TicketTypeRequest.Type.INFANT, 1)));
+
+        verifyNoInteractions(ticketPaymentService, seatReservationService);
+    }
+
+    @Test
+    @DisplayName("Mixed ticket types exceeding 25 total throws InvalidPurchaseException")
+    void mixedTicketsExceeding25Throws() {
+        assertThrows(InvalidPurchaseException.class, () ->
+                ticketService.purchaseTickets(1L,
+                        new TicketTypeRequest(TicketTypeRequest.Type.ADULT, 10),
+                        new TicketTypeRequest(TicketTypeRequest.Type.CHILD, 10),
+                        new TicketTypeRequest(TicketTypeRequest.Type.INFANT, 6)));
+
+        verifyNoInteractions(ticketPaymentService, seatReservationService);
+    }
 
 }
