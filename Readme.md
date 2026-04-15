@@ -1,4 +1,4 @@
-# Cinema Tickets - Manas Patil
+# Cinema Tickets
 
 The code checks everything
 upfront before touching any calculations or external services.
